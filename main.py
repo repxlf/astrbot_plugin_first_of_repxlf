@@ -39,56 +39,47 @@ class MyPlugin(Star):
         response = requests.get(url)
         img = Image.open(BytesIO(response.content)).convert("RGB")
 
-        draw = ImageDraw.Draw(img)
-
         # 白板区域
         board_x1 = 550
         board_y1 = 180
         board_x2 = 850
         board_y2 = 420
-
         board_width = board_x2 - board_x1
         board_height = board_y2 - board_y1
 
-        # 如果为空则直接返回空白
         if not text:
             output_path = "whiteboard_result.png"
             img.save(output_path)
             yield event.image_result(output_path)
             return
 
+        draw_img = ImageDraw.Draw(img)
+
         font_size = 100
-        best_lines = []
         best_font = None
+        best_lines = []
 
         while font_size > 10:
-
             font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+            bbox = draw_img.textbbox((0,0),"测试", font=font)
+            line_height = (bbox[3]-bbox[1]) + 5
+            max_lines = max(1, board_height // line_height)
+
+            total_chars = len(text)
+            base_len = total_chars // max_lines
+            extra = total_chars % max_lines
 
             lines = []
-            current_line = ""
-
-            for char in text:
-
-                test_line = current_line + char
-                bbox = draw.textbbox((0, 0), test_line, font=font)
-                test_width = bbox[2] - bbox[0]
-
-                if test_width <= board_width:
-                    current_line = test_line
-                else:
-                    lines.append(current_line)
-                    current_line = char
-
-            if current_line:
-                lines.append(current_line)
-
-            # 计算总高度
-            bbox = draw.textbbox((0, 0), "测试", font=font)
-            line_height = (bbox[3] - bbox[1]) + 5
+            start = 0
+            for i in range(max_lines):
+                end = start + base_len
+                if extra > 0:
+                    end += 1
+                    extra -= 1
+                lines.append(text[start:end])
+                start = end
 
             total_height = line_height * len(lines)
-
             if total_height <= board_height:
                 best_lines = lines
                 best_font = font
@@ -99,30 +90,34 @@ class MyPlugin(Star):
         if not best_lines:
             best_lines = [text]
             best_font = ImageFont.truetype("DejaVuSans.ttf", 10)
+            bbox = draw_img.textbbox((0,0),"测试", font=best_font)
+            line_height = (bbox[3]-bbox[1]) + 5
+            total_height = line_height * len(best_lines)
 
-        # 重新计算高度用于垂直居中
-        bbox = draw.textbbox((0, 0), "测试", font=best_font)
-        line_height = (bbox[3] - bbox[1]) + 5
+        # 创建透明文字层
+        text_layer = Image.new("RGBA", (img.width, img.height), (0,0,0,0))
+        draw = ImageDraw.Draw(text_layer)
 
-        total_height = line_height * len(best_lines)
-
+        # 垂直居中
         y = board_y1 + (board_height - total_height) // 2
 
         for line in best_lines:
-
-            bbox = draw.textbbox((0, 0), line, font=best_font)
-            line_width = bbox[2] - bbox[0]
-
-            x = board_x1 + (board_width - line_width) // 2
-
-            draw.text((x, y), line, font=best_font, fill=(68,144,206))
-
+            bbox = draw.textbbox((0,0), line, font=best_font)
+            line_width = bbox[2]-bbox[0]
+            x = board_x1 + (board_width - line_width)//2
+            draw.text((x, y), line, font=best_font, fill=(68,144,206,255))
             y += line_height
+
+        # 倾斜角度 k = tan(theta) = 1/20
+        k = 1/20
+        coeffs = (1, k, 0, 0, 1, 0)  # x' = x + k*y, y' = y
+        text_layer = text_layer.transform(text_layer.size, Image.AFFINE, coeffs, resample=Image.BICUBIC)
+
+        # 粘贴回原图
+        img.paste(text_layer, (0,0), text_layer)
 
         output_path = "whiteboard_result.png"
         img.save(output_path)
-
         yield event.image_result(output_path)
-
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
