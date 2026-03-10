@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
+@register("Repxlf's Kogasa", "Repxlf", "一个简单的 Hello Forgotten World 插件", "1.0.1")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -25,63 +25,123 @@ class MyPlugin(Star):
         """
     
     @filter.command("举白板")
-    async def whiteboard(self, event: AstrMessageEvent, text: str):
-        '''
-        举白板插件
-        使用方法：
-        /举白板 内容
-        '''
+    async def whiteboard(self, event: AstrMessageEvent, text: str = ""):
+        import requests
+        from PIL import Image, ImageDraw, ImageFont
+        from io import BytesIO
+        import math
 
-        logger.info("触发举白板指令")
-
-        # 模板图片URL
+        # 图片URL（替换成你的模板地址）
         url = "http://59.110.46.232/images/-2.jpg"
 
-        # 下载图片
         response = requests.get(url)
         img = Image.open(BytesIO(response.content)).convert("RGB")
 
+        # 如果内容为空，直接发送空白板
+        if text is None or text.strip() == "":
+            output = "whiteboard_result.png"
+            img.save(output)
+            yield event.image_result(output)
+            return
+
         draw = ImageDraw.Draw(img)
-    
-        # 白板区域（需要根据你的图片调整）
-        board_x1 = 0
-        board_y1 = 0
-        board_x2 = 200
-        board_y2 = 200
 
-        board_width = board_x2 - board_x1
-        board_height = board_y2 - board_y1
+        # 白板区域
+        x1, y1 = 550, 180
+        x2, y2 = 850, 420
 
-        # 自动调整字体大小
-        font_size = 100
-        font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+        width = x2 - x1
+        height = y2 - y1
+
+        # 字体颜色
+        color = (68,144,206)
+
+        # 字体
+        font_path = "msyh.ttc"
+
+        text = text.strip()
+
+        # ======================
+        # 自动分行
+        # ======================
+
+        total_chars = len(text)
+
+        chars_per_line = math.ceil(math.sqrt(total_chars))
+
+        lines = []
+
+        for i in range(0, total_chars, chars_per_line):
+            lines.append(text[i:i+chars_per_line])
+
+        line_count = len(lines)
+
+        # ======================
+        # 自动字体大小
+        # ======================
+
+        font_size = 120
 
         while font_size > 10:
-            font = ImageFont.truetype("DejaVuSans.ttf", font_size)
-            bbox = draw.textbbox((0, 0), text, font=font)
 
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
+            font = ImageFont.truetype(font_path, font_size)
 
-            if text_width <= board_width and text_height <= board_height:
+            max_width = 0
+            total_height = 0
+
+            for line in lines:
+
+                bbox = draw.textbbox((0,0), line, font=font)
+
+                w = bbox[2] - bbox[0]
+                h = bbox[3] - bbox[1]
+
+                if w > max_width:
+                    max_width = w
+
+                total_height += h
+
+            line_spacing = int(font_size * 0.3)
+            total_height += (line_count - 1) * line_spacing
+
+            if max_width <= width and total_height <= height:
                 break
 
             font_size -= 2
 
-        # 计算文字居中位置
-        x = board_x1 + (board_width - text_width) // 2
-        y = board_y1 + (board_height - text_height) // 2
+        # ======================
+        # 计算居中
+        # ======================
 
-        # 写入文字（蓝色）
-        draw.text((x, y), text, font=font, fill=(0, 0, 255))
+        start_y = y1 + (height - total_height) // 2
+        y = start_y
 
-        # 保存图片
-        output_path = "whiteboard_result.png"
-        img.save(output_path)
+        # ======================
+        # 绘制每一行
+        # ======================
 
-        # 发送图片
-        yield event.image_result(output_path)
-        
+        for line in lines:
+
+            bbox = draw.textbbox((0,0), line, font=font)
+
+            w = bbox[2] - bbox[0]
+            h = bbox[3] - bbox[1]
+
+            x = x1 + (width - w) // 2
+
+            draw.text(
+                (x, y),
+                line,
+                font=font,
+                fill=color
+            )
+
+            y += h + int(font_size * 0.3)
+
+        output = "whiteboard_result.png"
+        img.save(output)
+
+        yield event.image_result(output)
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
