@@ -3,15 +3,16 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from PIL import Image, ImageDraw, ImageFont
 import requests
+import os
 from io import BytesIO
 
-@register("Repxlf's Kogasa", "Repxlf", "一个简单的 Hello Forgotten World 插件", "1.0.1")
+@register("Repxlf's Kogasa", "Repxlf", "一个简单的 Hello Forgotten World 插件", "1.0.2")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
 
     async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。aaaa"""
 
     # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
     """@filter.command("helloworld")
@@ -57,7 +58,7 @@ class MyPlugin(Star):
         color = (68,144,206)
 
         # 字体
-        font_path = "msyh.ttc"
+        font_path = os.path.join(os.path.dirname(__file__), "msyh.ttc")
 
         text = text.strip()
 
